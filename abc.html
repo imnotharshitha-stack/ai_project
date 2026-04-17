@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise PDF AI Dashboard</title>
+    <style>
+        :root { 
+            --bg: #f8f9fa; --card: #ffffff; --primary: #2563eb; --secondary: #64748b; 
+            --text: #1e293b; --border: #e2e8f0; --sidebar-bg: #f8fafc; --success: #10b981;
+            --error: #ef4444; --warning: #f59e0b;
+        }
+        [data-theme="dark"] { 
+            --bg: #0f172a; --card: #1e293b; --primary: #3b82f6; --secondary: #94a3b8;
+            --text: #f1f5f9; --border: #334155; --sidebar-bg: #1e293b; --success: #34d399;
+            --error: #f87171; --warning: #fbbf24;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+        
+        .dashboard { display: flex; height: 100vh; }
+        .sidebar { width: 20%; background: var(--sidebar-bg); border-right: 1px solid var(--border); padding: 24px 20px; overflow-y: auto; }
+        .main { width: 80%; display: flex; flex-direction: column; overflow: hidden; }
+        
+        .header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--card); }
+        .content { flex: 1; padding: 24px; overflow-y: auto; }
+        
+        .logo { font-size: 24px; font-weight: 700; color: var(--primary); }
+        .theme-toggle { background: none; border: 2px solid var(--primary); color: var(--primary); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 14px; }
+        .theme-toggle:hover { background: var(--primary); color: white; }
+        
+        .nav-item { display: flex; align-items: center; padding: 14px 16px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-weight: 500; font-size: 15px; border: 2px solid transparent; }
+        .nav-item:hover { background: rgba(37,99,235,0.1); border-color: var(--primary); }
+        .nav-item.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .nav-icon { margin-right: 12px; font-size: 18px; width: 24px; text-align: center; }
+        
+        .section-card { background: var(--card); border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid var(--border); padding: 28px; }
+        input, select, button, textarea { padding: 12px 16px; margin: 8px 4px 8px 0; border: 2px solid var(--border); border-radius: 8px; font-size: 16px; background: var(--card); color: var(--text); font-family: inherit; }
+        button { background: var(--primary); color: white; border: none; cursor: pointer; transition: all 0.2s; font-weight: 500; height: 44px; }
+        button:hover { background: #1d4ed8; transform: translateY(-1px); }
+        button:disabled { background: var(--secondary); cursor: not-allowed; transform: none; }
+        
+        .mic-btn { background: var(--error) !important; width: 56px; height: 56px; border-radius: 50%; font-size: 18px; font-weight: bold; margin: 0 12px; }
+        .mic-btn.listening { background: #dc2626 !important; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(220,38,38,0.7); } 70% { box-shadow: 0 0 0 20px rgba(220,38,38,0); } 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); } }
+        
+        .chat-history { max-height: 400px; overflow-y: auto; border: 2px solid var(--border); border-radius: 8px; padding: 16px; margin: 20px 0; background: var(--bg); }
+        .message { margin-bottom: 16px; padding: 16px; border-radius: 12px; font-size: 15px; line-height: 1.5; }
+        .user-msg { background: var(--primary); color: white; margin-left: 20%; }
+        .ai-msg { background: rgba(37,99,235,0.08); border-left: 4px solid var(--primary); }
+        
+        .file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top: 24px; }
+        .file-card { padding: 24px; border: 2px solid var(--border); border-radius: 12px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .file-card:hover { border-color: var(--primary); background: rgba(37,99,235,0.05); }
+        .file-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.8; }
+        .file-name { font-weight: 600; margin-bottom: 4px; }
+        .file-details { color: var(--secondary); font-size: 14px; }
+        
+        .status { padding: 16px; border-radius: 8px; margin: 20px 0; font-weight: 500; }
+        .status.success { background: rgba(16,185,129,0.1); border-left: 4px solid var(--success); color: var(--success); }
+        .status.error { background: rgba(239,68,68,0.1); border-left: 4px solid var(--error); color: var(--error); }
+        .status.loading { background: rgba(59,130,246,0.1); border-left: 4px solid var(--primary); color: var(--primary); display: flex; align-items: center; }
+        .loading { width: 20px; height: 20px; border: 2px solid var(--border); border-top: 2px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-right: 12px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .form-row { display: flex; gap: 16px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+        .form-group { display: flex; flex-direction: column; flex: 1; min-width: 200px; }
+        label { font-weight: 500; margin-bottom: 8px; color: var(--text); }
+        
+        @media (max-width: 1024px) {
+            .dashboard { flex-direction: column; }
+            .sidebar { width: 100%; height: auto; }
+            .main { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard" data-theme="light">
+        <!-- Sidebar Navigation -->
+        <div class="sidebar">
+            <div class="logo">AI Dashboard</div>
+            <div style="margin: 40px 0 0 0;">
+                <div class="nav-item active" onclick="showSection('files')">
+                    <span class="nav-icon">📄</span>File Manager
+                </div>
+                <div class="nav-item" onclick="showSection('chat')">
+                    <span class="nav-icon">💬</span>Chat
+                </div>
+                <div class="nav-item" onclick="showSection('summarize')">
+                    <span class="nav-icon">📋</span>Summarize
+                </div>
+                <div class="nav-item" onclick="showSection('settings')">
+                    <span class="nav-icon">⚙️</span>Settings
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="main">
+            <div class="header">
+                <h1 id="sectionTitle">File Manager</h1>
+                <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">Switch to Dark Mode</button>
+            </div>
+            
+            <div class="content">
+                <!-- File Manager Section -->
+                <div id="files-section" class="section-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px;">
+                        <h2>File Manager</h2>
+                        <div id="uploadStatus" class="status" style="display: none;"></div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png" multiple style="flex: 1;">
+                        <button onclick="uploadFiles()">Upload Files</button>
+                        <button onclick="refreshFiles()">Refresh List</button>
+                    </div>
+                    <div id="fileList" class="file-grid"></div>
+                </div>
+
+                <!-- Chat Section -->
+                <div id="chat-section" class="section-card" style="display: none;">
+                    <h2>AI Chat Assistant</h2>
+                    <div id="chatHistory" class="chat-history"></div>
+                    
+                    <div class="form-row" style="align-items: end;">
+                        <input id="question" placeholder="Type your question or click Mic for voice input" style="flex: 1;" onkeypress="handleKeypress(event)">
+                        <button class="mic-btn" id="micBtn" onclick="toggleVoiceInput()" title="Voice Input">Mic</button>
+                        <button onclick="stopVoice()" style="background: var(--error);">Stop</button>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Response Style</label>
+                            <select id="audience">
+                                <option value="adults">Professional</option>
+                                <option value="students">Students</option>
+                                <option value="children">Simple</option>
+                            </select>
+                        </div>
+                        <button onclick="askQuestion()" style="width: 180px;">Send Message</button>
+                    </div>
+                </div>
+
+                <!-- Summarize Section -->
+                <div id="summarize-section" class="section-card" style="display: none;">
+                    <h2>Document Summary</h2>
+                    <p style="color: var(--secondary); margin-bottom: 28px; line-height: 1.6;">
+                        Generate intelligent summaries from all your uploaded documents
+                    </p>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Summary Style</label>
+                            <select id="summarizeAudience">
+                                <option value="adults">Executive Summary</option>
+                                <option value="students">Study Notes</option>
+                                <option value="children">Simple Explanation</option>
+                            </select>
+                        </div>
+                        <button onclick="summarizeAll()" style="width: 200px;">Generate Summary</button>
+                    </div>
+                    
+                    <div id="summaryResult" style="margin-top: 24px; min-height: 240px; padding: 24px; border: 2px dashed var(--border); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--secondary);">
+                        Click "Generate Summary" to create summary from your files
+                    </div>
+                </div>
+
+                <!-- Settings Section -->
+                <div id="settings-section" class="section-card" style="display: none;">
+                    <h2>Application Settings</h2>
+                    <div style="display: grid; grid-template-columns: 220px 1fr; gap: 24px; margin-top: 32px; align-items: center;">
+                        <label>Voice Playback Speed</label>
+                        <input type="range" id="voiceSpeed" min="0.5" max="2" step="0.1" value="1" onchange="updateVoiceSettings()">
+                        
+                        <label>Default Response Style</label>
+                        <select id="defaultAudience">
+                            <option value="adults">Professional</option>
+                            <option value="students">Students</option>
+                            <option value="children">Simple</option>
+                        </select>
+                        
+                        <label>Auto-play Voice Responses</label>
+                        <input type="checkbox" id="autoSpeak" checked onchange="toggleAutoSpeak()">
+                        
+                        <label>Application Theme</label>
+                        <select onchange="setTheme(this.value)">
+                            <option value="light">Light Theme</option>
+                            <option value="dark">Dark Theme</option>
+                        </select>
+                    </div>
+                    
+                    <div style="margin-top: 40px; display: flex; gap: 16px;">
+                        <button onclick="exportChat()" style="flex: 1;">Export Chat History</button>
+                        <button onclick="clearAllData()" style="flex: 1; background: var(--error);">Clear All Data</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Core Navigation
+        function showSection(section) {
+            // Hide all sections
+            document.querySelectorAll('.section-card').forEach(s => s.style.display = 'none');
+            // Remove active nav items
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            // Show selected section
+            document.getElementById(section + '-section').style.display = 'block';
+            document.querySelector(`[onclick="showSection('${section}')"]`).classList.add('active');
+            // Update header title
+            const titles = {
+                files: 'File Manager',
+                chat: 'AI Chat Assistant', 
+                summarize: 'Document Summary',
+                settings: 'Application Settings'
+            };
+            document.getElementById('sectionTitle').textContent = titles[section];
+        }
+
+        // Voice Recognition and Synthesis
+        const recognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+        const synth = window.speechSynthesis;
+        let isListening = false;
+        let autoSpeak = true;
+
+        if (recognition) {
+            const rec = new recognition();
+            rec.continuous = false;
+            rec.interimResults = false;
+            rec.lang = 'en-US';
+            
+            rec.onstart = () => {
+                document.getElementById('micBtn').textContent = '●';
+                document.getElementById('micBtn').classList.add('listening');
+            };
+            
+            rec.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('question').value = transcript;
+                document.getElementById('micBtn').textContent = 'Mic';
+                document.getElementById('micBtn').classList.remove('listening');
+                askQuestion();
+            };
+            
+            rec.onerror = rec.onend = () => {
+                document.getElementById('micBtn').textContent = 'Mic';
+                document.getElementById('micBtn').classList.remove('listening');
+                isListening = false;
+            };
+            
+            window.toggleVoiceInput = () => {
+                if (isListening) {
+                    rec.stop();
+                } else {
+                    isListening = true;
+                    rec.start();
+                }
+            };
+        } else {
+            document.getElementById('micBtn').style.display = 'none';
+        }
+
+        function speak(text) {
+            if (autoSpeak && synth) {
+                synth.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = parseFloat(document.getElementById('voiceSpeed').value) || 1;
+                synth.speak(utterance);
+            }
+        }
+
+        function stopVoice() {
+            if (synth) synth.cancel();
+            if (recognition && isListening) recognition.stop();
+        }
+
+        window.updateVoiceSettings = () => {};
+        window.toggleAutoSpeak = () => { autoSpeak = document.getElementById('autoSpeak').checked; };
+
+        // Chat History Management
+        let chatHistory = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+
+        function loadChat() {
+            const chatContainer = document.getElementById('chatHistory');
+            chatContainer.innerHTML = chatHistory.map(msg => 
+                `<div class="message ${msg.role}">${escapeHtml(msg.content)}</div>`
+            ).join('');
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function addMessage(role, content) {
+            chatHistory.push({ role, content, timestamp: new Date().toLocaleTimeString() });
+            if (chatHistory.length > 50) chatHistory.shift(); // Keep last 50
+            localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+            loadChat();
+        }
+
+        function escapeHtml(text) {
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // API Communication
+        async function apiCall(endpoint, data = {}) {
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 30000);
+                
+                const response = await fetch(`http://localhost:8000${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error('API Error:', error);
+                throw error;
+            }
+        }
+
+        function showStatus(message, type = 'info') {
+            const status = document.getElementById('uploadStatus');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            setTimeout(() => status.style.display = 'none', 5000);
+        }
+
+        // File Operations
+        window.uploadFiles = async () => {
+            const fileInput = document.getElementById('fileInput');
+            if (!fileInput.files.length) {
+                showStatus('Please select files to upload', 'error');
+                return;
+            }
+            
+            showStatus('Uploading files...', 'loading');
+            
+            const formData = new FormData();
+            for (let file of fileInput.files) {
+                formData.append('files', file);
+            }
+            
+            try {
+                const response = await fetch('http://localhost:8000/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                showStatus(`Uploaded successfully: ${data.uploaded?.join(', ') || data.status || 'Complete'}`, 'success');
+                refreshFiles();
+            } catch (error) {
+                showStatus('Upload failed: ' + error.message, 'error');
+            }
+        };
+
+        window.refreshFiles = async () => {
+            try {
+                const data = await apiCall('/files');
+                const fileList = document.getElementById('fileList');
+                fileList.innerHTML = (data.files || []).map(file => `
+                    <div class="file-card">
+                        <div class="file-icon">${getFileIcon(file.type)}</div>
+                        <div class="file-name">${escapeHtml(file.name)}</div>
+                        <div class="file-details">${file.type} • ${(file.size / 1024 / 1024).toFixed(1)} MB</div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                document.getElementById('fileList').innerHTML = '<div class="status error" style="grid-column: 1/-1;">No files found or API error</div>';
+            }
+        };
+
+        function getFileIcon(type) {
+            if (type.includes('pdf')) return '📄';
+            if (type.includes('image')) return '🖼️';
+            return '📎';
+        }
+
+        // Chat Operations
+        window.askQuestion = async () => {
+            const question = document.getElementById('question').value.trim();
+            if (!question) return showStatus('Please enter a question', 'warning');
+            
+            addMessage('user', question);
+            document.getElementById('question').value = '';
+            showStatus('AI is generating response...', 'loading');
+            
+            try {
+                const data = await apiCall('/chat', {
+                    question,
+                    audience: document.getElementById('audience').value
+                });
+                
+                const answer = `${data.answer}<br><small style="color: var(--secondary);">Sources: ${data.sources?.join(', ') || 'Direct'} | ${data.word_count || '?'} words</small>`;
+                addMessage('ai', answer);
+                showStatus('Response ready');
+                speak(data.answer);
+            } catch (error) {
+                addMessage('ai', `Error: ${error.message}. Please check if backend is running on localhost:8000`);
+                showStatus('Chat error: ' + error.message, 'error');
+            }
+        };
+
+        window.summarizeAll = async () => {
+            document.getElementById('summaryResult').innerHTML = '<div class="status loading">Generating summary...</div>';
+            
+            try {
+                const data = await apiCall('/summarize', {
+                    audience: document.getElementById('summarizeAudience').value
+                });
+                
+                document.getElementById('summaryResult').innerHTML = `
+                    <div class="status success">
+                        <strong>Summary Generated Successfully!</strong><br><br>
+                        ${data.summary.replace(/\\n/g, '<br>')}
+                        <br><br><small>Sources: ${data.sources?.join(', ') || 'All files'}</small>
+                    </div>`;
+                speak(data.summary);
+            } catch (error) {
+                document.getElementById('summaryResult').innerHTML = `<div class="status error">Summary failed: ${error.message}</div>`;
+            }
+        };
+
+        window.clearAllData = () => {
+            if (confirm('Clear all chat history and local data?')) {
+                localStorage.clear();
+                chatHistory = [];
+                loadChat();
+                showStatus('All data cleared');
+            }
+        };
+
+        window.exportChat = () => {
+            const dataStr = JSON.stringify(chatHistory, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `chat-history-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            showStatus('Chat history exported');
+        };
+
+        window.handleKeypress = (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                askQuestion();
+            }
+        };
+
+        // Theme Management
+        function setTheme(theme) {
+            document.body.dataset.theme = theme;
+            const isDark = theme === 'dark';
+            document.getElementById('themeBtn').textContent = isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+            localStorage.setItem('theme', theme);
+        }
+
+        window.toggleTheme = () => {
+            const isDark = document.body.dataset.theme === 'dark';
+            setTheme(isDark ? 'light' : 'dark');
+        };
+
+        // Initialize Application
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load saved theme
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            setTheme(savedTheme);
+            
+            // Load chat history
+            loadChat();
+            
+            // Refresh files
+            refreshFiles();
+        });
+    </script>
+</body>
+</html> 
